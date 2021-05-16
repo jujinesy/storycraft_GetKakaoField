@@ -3,4 +3,4 @@
 
 GetKakaoFields...
 
-![Imgur](https://i.imgur.com/NdtAeXz.png)
+![Imgur](https://raw.githubusercontent.com/jujinesy/storycraft_GetKakaoField/packet/image.png)
