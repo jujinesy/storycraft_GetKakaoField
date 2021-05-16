@@ -10,25 +10,21 @@ void Start();
 DWORD dwKakao = 0;
 
 DWORD Kakao_return_1 = 0;
-BYTE jmp[8] = { 0xe9,0x00,0x00,0x00,0x00,0x90,0x90,0x90 };
+BYTE jmp[7] = { 0xe9,0x00,0x00,0x00,0x00,0x90,0x90 };
 
-char* pathFormat = "Path> %S\n";
-char* Keyformat = "SQLite op> %s\n\n";
-
+char *format1 = "1 - > %s\n";
 bool bCompare(const BYTE* pData, const BYTE* bMask, const char* szMask)
 {
 	for (; *szMask; ++szMask, ++pData, ++bMask)
 		if (*szMask == 'x' && *pData != *bMask) return 0;
 	return (*szMask) == NULL;
 }
-
 DWORD FindPattern(DWORD dwAddress, DWORD dwLen, BYTE *bMask, char * szMask)
 {
 	for (DWORD i = 0; i<dwLen; i++)
 		if (bCompare((BYTE*)(dwAddress + i), bMask, szMask)) return (DWORD)(dwAddress + i);
 	return 0;
 }
-
 BOOL MemoryEdit(VOID *lpMem, VOID *lpSrc, DWORD len)
 {
 	DWORD lpflOldProtect, flNewProtect = PAGE_READWRITE;
@@ -43,36 +39,42 @@ BOOL MemoryEdit(VOID *lpMem, VOID *lpSrc, DWORD len)
 }
 DWORD Hook(LPVOID lpFunction)
 {
-	DWORD dwAddr = Kakao_return_1 - 8;
+	DWORD dwAddr = Kakao_return_1 - 7;
 	DWORD dwCalc = ((DWORD)lpFunction - dwAddr - 5);
 
 	memcpy(&jmp[1], &dwCalc, 4);
-	WriteProcessMemory(GetCurrentProcess(), (LPVOID)dwAddr, jmp, 8, 0);
+	WriteProcessMemory(GetCurrentProcess(), (LPVOID)dwAddr, jmp, 7, 0);
 	return dwAddr;
 }
-
+DWORD HookFunction(LPCSTR lpModule, LPCSTR lpFuncName, LPVOID lpFunction, unsigned char *lpBackup)
+{
+	DWORD dwAddr = (DWORD)GetProcAddress(GetModuleHandleA(lpModule), lpFuncName);
+	ReadProcessMemory(GetCurrentProcess(), (LPVOID)dwAddr, lpBackup, 6, 0);
+	DWORD dwCalc = ((DWORD)lpFunction - dwAddr - 5);
+	memcpy(&jmp[1], &dwCalc, 4);
+	WriteProcessMemory(GetCurrentProcess(), (LPVOID)dwAddr, jmp, 6, 0);
+	return dwAddr;
+}
+BOOL UnHookFunction(LPCSTR lpModule, LPCSTR lpFuncName, unsigned char *lpBackup)
+{
+	DWORD dwAddr = (DWORD)GetProcAddress(GetModuleHandleA(lpModule), lpFuncName);
+	if (WriteProcessMemory(GetCurrentProcess(), (LPVOID)dwAddr, lpBackup, 6, 0))
+		return TRUE;
+	return FALSE;
+}
 void __declspec(naked) Kakao_hook_1()
 {
 	__asm
 	{
-		pushad
-		push dword ptr[edi]
-		push pathFormat
-		call printf
-		add esp, 8
-		popad
-
-		pushad
-		push esi
-		push Keyformat
-		call printf
-		add esp, 8
-		popad
-
-		mov byte ptr ss : [ebp - 4] , 9
-		cmp dword ptr ss : [ebp - 18] , 0
-
-		jmp[Kakao_return_1]
+		add esp,8
+		mov byte ptr ss:[ebp-4],3
+			pushad
+			push ecx
+			push format1
+			call printf
+			add esp, 8
+			popad
+			jmp[Kakao_return_1]
 	}
 }
 void Start()
@@ -86,9 +88,10 @@ void Start()
 	} while (!dwKakao);
 	Sleep(100);
 	printf("Kakao: %x\n", dwKakao);
-	dwAddress = FindPattern(dwKakao, dwSize, (PBYTE)"\x50\xE8\xFF\xFF\xFF\xFF\xC6\x45\xFC\x09\x83\x7D\xE8\x00", "xx????xxxxxxxx");
+
+	dwAddress = FindPattern(dwKakao + 0x900000, dwSize, (PBYTE)"\xE8\xFC\xFF\xFF\xFF\x83\xC4\x08\xC6\x45\xFC\x03", "x????xxxxxxx");
 	printf("Address: %x\n", dwAddress);
-	Kakao_return_1 = dwAddress + 14;
+	Kakao_return_1 = dwAddress + 12;
 	Hook(Kakao_hook_1);
 }
 BOOL APIENTRY DllMain(HMODULE hModul, DWORD ul_reason_for_ca, LPVOID lpReserve)
