@@ -2,15 +2,13 @@
 #include <windows.h>
 #include <stdio.h>
 
-int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdParam, int nCmdShow);
-
 #pragma comment(lib, "ws2_32.lib")
 void Start();
 
 DWORD dwKakao = 0;
 
 DWORD Kakao_return_1 = 0;
-BYTE jmp[7] = { 0xe9,0x00,0x00,0x00,0x00,0x90,0x90 };
+BYTE jmp[6] = { 0xe9,0x00,0x00,0x00,0x00,0xc3 };
 
 char *format1 = "1 - > %s\n";
 bool bCompare(const BYTE* pData, const BYTE* bMask, const char* szMask)
@@ -39,11 +37,11 @@ BOOL MemoryEdit(VOID *lpMem, VOID *lpSrc, DWORD len)
 }
 DWORD Hook(LPVOID lpFunction)
 {
-	DWORD dwAddr = Kakao_return_1 - 7;
+	DWORD dwAddr = Kakao_return_1 - 8;
 	DWORD dwCalc = ((DWORD)lpFunction - dwAddr - 5);
 
 	memcpy(&jmp[1], &dwCalc, 4);
-	WriteProcessMemory(GetCurrentProcess(), (LPVOID)dwAddr, jmp, 7, 0);
+	WriteProcessMemory(GetCurrentProcess(), (LPVOID)dwAddr, jmp, 6, 0);
 	return dwAddr;
 }
 DWORD HookFunction(LPCSTR lpModule, LPCSTR lpFuncName, LPVOID lpFunction, unsigned char *lpBackup)
@@ -66,10 +64,10 @@ void __declspec(naked) Kakao_hook_1()
 {
 	__asm
 	{
-		add esp,8
-		mov byte ptr ss:[ebp-4],3
+		mov eax, dword ptr ss : [ESP + 0x20]
+		mov esi, DWORD ptr ss : [ESP + 0x24]
 			pushad
-			push ecx
+			push eax
 			push format1
 			call printf
 			add esp, 8
@@ -79,7 +77,7 @@ void __declspec(naked) Kakao_hook_1()
 }
 void Start()
 {
-	DWORD dwSize = 0x1000000;
+	DWORD dwSize = 0x180000;
 	DWORD dwAddress = 0;
 	do
 	{
@@ -89,9 +87,9 @@ void Start()
 	Sleep(100);
 	printf("Kakao: %x\n", dwKakao);
 
-	dwAddress = FindPattern(dwKakao + 0x900000, dwSize, (PBYTE)"\xE8\xFC\xFF\xFF\xFF\x83\xC4\x08\xC6\x45\xFC\x03", "x????xxxxxxx");
+	dwAddress = FindPattern(dwKakao, dwSize, (PBYTE)"\xe8\x00\x00\x00\x00\x8b\x44\x24\x20\x8b\x74\x24\x24", "x????xxxxxxxx");
 	printf("Address: %x\n", dwAddress);
-	Kakao_return_1 = dwAddress + 12;
+	Kakao_return_1 = dwAddress + 13;
 	Hook(Kakao_hook_1);
 }
 BOOL APIENTRY DllMain(HMODULE hModul, DWORD ul_reason_for_ca, LPVOID lpReserve)
@@ -110,10 +108,4 @@ BOOL APIENTRY DllMain(HMODULE hModul, DWORD ul_reason_for_ca, LPVOID lpReserve)
 		break;
 	}
 	return TRUE;
-}
-
-int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdParam, int nCmdShow)
-{
-	Start();
-	return 0;
 }
